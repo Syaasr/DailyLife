@@ -1,31 +1,71 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/glass_scaffold.dart';
+import 'data/journal_entry.dart';
+import 'journal_detail_screen.dart';
+import 'journal_edit_screen.dart';
+import 'state/journal_notifier.dart';
 
-class JournalScreen extends StatefulWidget {
+class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
 
   @override
-  State<JournalScreen> createState() => _JournalScreenState();
+  ConsumerState<JournalScreen> createState() => _JournalScreenState();
 }
 
-class _JournalScreenState extends State<JournalScreen> {
-  int _selectedTag = 0;
-  final _tags = ['All', 'Gratitude', 'Ideas', 'Reflection'];
+class _JournalScreenState extends ConsumerState<JournalScreen> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final journalState = ref.watch(journalNotifierProvider);
+    final notifier = ref.read(journalNotifierProvider.notifier);
+    final filtered = journalState.filteredEntries;
+
     return GlassScaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const JournalEditScreen()),
+          );
+        },
         child: const Icon(Icons.add),
       ),
       appBar: AppBar(
         title: const Text('Journal'),
         actions: [
-          IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                onPressed: () => notifier.toggleDevMode(),
+              ),
+              if (journalState.devMode)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: Column(
@@ -39,11 +79,15 @@ class _JournalScreenState extends State<JournalScreen> {
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.glassBorder.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: AppColors.glassBorder.withValues(alpha: 0.2),
+                ),
               ),
-              child: const TextField(
-                style: TextStyle(color: Colors.white),
-                decoration: InputDecoration(
+              child: TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                onChanged: (query) => notifier.setSearch(query),
+                decoration: const InputDecoration(
                   hintText: 'Search journals...',
                   hintStyle: TextStyle(color: AppColors.textMuted),
                   prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
@@ -60,16 +104,17 @@ class _JournalScreenState extends State<JournalScreen> {
             height: 40,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _tags.length,
+              itemCount: journalState.tags.length,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemBuilder: (context, index) {
-                final selected = index == _selectedTag;
+                final tag = journalState.tags[index];
+                final selected = tag == journalState.selectedTag;
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: ChoiceChip(
-                    label: Text(_tags[index]),
+                    label: Text(tag),
                     selected: selected,
-                    onSelected: (_) => setState(() => _selectedTag = index),
+                    onSelected: (_) => notifier.setTag(tag),
                     selectedColor: AppColors.glowingBlue,
                     backgroundColor: Colors.white.withValues(alpha: 0.08),
                     labelStyle: TextStyle(
@@ -81,7 +126,9 @@ class _JournalScreenState extends State<JournalScreen> {
                           ? AppColors.glowingBlue
                           : AppColors.glassBorder.withValues(alpha: 0.3),
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
                   ),
                 );
               },
@@ -89,31 +136,97 @@ class _JournalScreenState extends State<JournalScreen> {
           ),
           const SizedBox(height: 12),
 
+          // Dev mode toolbar
+          if (journalState.devMode)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _DevButton(
+                    icon: Icons.undo,
+                    label: 'Undo',
+                    enabled: notifier.canUndo,
+                    onTap: () => notifier.undo(),
+                  ),
+                  const SizedBox(width: 8),
+                  _DevButton(
+                    icon: Icons.redo,
+                    label: 'Redo',
+                    enabled: notifier.canRedo,
+                    onTap: () => notifier.redo(),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'DEV MODE',
+                      style: TextStyle(
+                        color: AppColors.success,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (journalState.devMode) const SizedBox(height: 8),
+
           // Journal list
           Expanded(
-            child: ListView(
-              children: const [
-                _JournalCard(
-                  title: 'Morning Reflection',
-                  date: 'Feb 20',
-                  preview: 'Today I woke up feeling grateful for the small things. The sun was shining through my window and...',
-                  tag: 'Gratitude',
-                ),
-                _JournalCard(
-                  title: 'App Feature Ideas',
-                  date: 'Feb 19',
-                  preview: 'I was thinking about adding a mood tracker to the Daily Life app. It could show emoji-based moods...',
-                  tag: 'Ideas',
-                ),
-                _JournalCard(
-                  title: 'Evening Thoughts',
-                  date: 'Feb 18',
-                  preview: 'Looking back at this week, I realize how much progress I\'ve made. The habit tracker has been...',
-                  tag: 'Reflection',
-                ),
-                SizedBox(height: 100),
-              ],
-            ),
+            child: filtered.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.book_outlined,
+                          size: 64,
+                          color: AppColors.textMuted.withValues(alpha: 0.4),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          journalState.searchQuery.isNotEmpty
+                              ? 'No journals found'
+                              : 'Start writing your journal',
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == filtered.length) {
+                        return const SizedBox(height: 100);
+                      }
+                      final entry = filtered[index];
+                      return _JournalCard(
+                        entry: entry,
+                        devMode: journalState.devMode,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  JournalDetailScreen(entryId: entry.id),
+                            ),
+                          );
+                        },
+                        onDelete: () => notifier.deleteEntry(entry.id),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -121,32 +234,141 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 }
 
-class _JournalCard extends StatelessWidget {
-  const _JournalCard({
-    required this.title,
-    required this.date,
-    required this.preview,
-    required this.tag,
+class _DevButton extends StatelessWidget {
+  const _DevButton({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    required this.onTap,
   });
 
-  final String title;
-  final String date;
-  final String preview;
-  final String tag;
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: enabled ? 0.12 : 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.glassBorder.withValues(alpha: enabled ? 0.3 : 0.1),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: enabled ? AppColors.textPrimary : AppColors.textMuted.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: enabled ? AppColors.textPrimary : AppColors.textMuted.withValues(alpha: 0.4),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JournalCard extends StatelessWidget {
+  const _JournalCard({
+    required this.entry,
+    required this.devMode,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final JournalEntry entry;
+  final bool devMode;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final dateStr = DateFormat('MMM d').format(entry.createdAt);
+    final preview = entry.content.length > 100
+        ? '${entry.content.substring(0, 100)}...'
+        : entry.content;
+
     return GlassCard(
-      onTap: () {},
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white)),
+                child: Text(
+                  entry.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
               ),
-              Text(date, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              if (devMode) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppColors.deepSapphire,
+                        title: const Text(
+                          'Delete Journal?',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        content: const Text(
+                          'This action can be undone in dev mode.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              onDelete();
+                            },
+                            child: const Text(
+                              'Delete',
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: AppColors.error,
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -154,7 +376,10 @@ class _JournalCard extends StatelessWidget {
             preview,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 8),
           Container(
@@ -164,8 +389,12 @@ class _JournalCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              tag,
-              style: const TextStyle(color: AppColors.glowingBlue, fontSize: 11, fontWeight: FontWeight.w500),
+              entry.tag,
+              style: const TextStyle(
+                color: AppColors.glowingBlue,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

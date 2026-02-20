@@ -28,6 +28,8 @@ daily_life/.metadata
 daily_life/android/app/debug
 daily_life/android/app/profile
 daily_life/android/app/release
+daily_life/android/local.properties
+
 
 # iOS artifacts
 daily_life/ios/Flutter/.last_build_id
