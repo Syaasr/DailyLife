@@ -1,0 +1,51 @@
+# DailyLife Root Gitignore
+
+# Antigravity/Agent metadata
+.agent/
+
+# MacOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Flutter/Dart (DailyLife App)
+daily_life/.dart_tool/
+daily_life/.flutter-plugins
+daily_life/.flutter-plugins-dependencies
+daily_life/.packages
+daily_life/.pub-cache/
+daily_life/.pub/
+daily_life/build/
+daily_life/coverage/
+daily_life/.metadata
+
+# Android artifacts
+daily_life/android/app/debug
+daily_life/android/app/profile
+daily_life/android/app/release
+
+# iOS artifacts
+daily_life/ios/Flutter/.last_build_id
+daily_life/ios/Flutter/Ephemeral/
+daily_life/ios/Flutter/Generated.xcconfig
+daily_life/ios/Flutter/flutter_export_environment.sh
+
+# Logs and class files
+*.log
+*.class
+
+# Miscellaneous
+.env
+*.swp
+*.bak
+
+# Stitch local metadata (if any)
+stitch.json
+# is currently under version control as a source of truth for Project ID, 
+# but if it contains credentials (it doesn't here) it should be ignored. 
+# Keep it for now.
