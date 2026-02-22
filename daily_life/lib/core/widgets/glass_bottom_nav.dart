@@ -23,35 +23,41 @@ class GlassBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: AppColors.glassBorder.withValues(alpha: 0.3),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Thin white divider on top
+        Divider(
+          height: 0.5,
+          thickness: 0.5,
+          color: Colors.white.withValues(alpha: 0.15),
+        ),
+        // Full-width dark nav bar
+        ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              height: 70,
+              width: double.infinity,
+              color: AppColors.deepSapphireDark.withValues(alpha: 0.92),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(_items.length, (i) {
+                    final selected = i == currentIndex;
+                    return _NavButton(
+                      item: _items[i],
+                      selected: selected,
+                      onTap: () => onTap(i),
+                    );
+                  }),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(_items.length, (i) {
-                final selected = i == currentIndex;
-                return _NavButton(
-                  item: _items[i],
-                  selected: selected,
-                  onTap: () => onTap(i),
-                );
-              }),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

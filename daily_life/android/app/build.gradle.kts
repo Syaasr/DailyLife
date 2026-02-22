@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.daily_life"
+    namespace = "com.syaasr.daily_life"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

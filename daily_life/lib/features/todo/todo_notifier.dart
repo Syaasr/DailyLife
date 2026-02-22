@@ -1,19 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'todo_model.dart';
+import 'todo_repository.dart';
 
 // ──── State ────
 
 class TodoState {
-  const TodoState({
-    this.tasks = const [],
-    this.selectedTag = 'All',
-    this.devMode = false,
-  });
+  const TodoState({this.tasks = const [], this.selectedTag = 'All'});
 
   final List<TodoTask> tasks;
   final String selectedTag;
-  final bool devMode;
+
+  /// Dynamic tags derived from pending tasks, plus 'All'.
+  List<String> get dynamicTags {
+    final tags =
+        tasks
+            .where((t) => t.status == TaskStatus.pending)
+            .map((t) => t.tag)
+            .toSet()
+            .toList()
+          ..sort();
+    return ['All', ...tags];
+  }
 
   List<TodoTask> get filteredTasks {
     if (selectedTag == 'All') {
@@ -24,28 +32,26 @@ class TodoState {
         .toList();
   }
 
-  TodoState copyWith({
-    List<TodoTask>? tasks,
-    String? selectedTag,
-    bool? devMode,
-  }) {
+  TodoState copyWith({List<TodoTask>? tasks, String? selectedTag}) {
     return TodoState(
       tasks: tasks ?? this.tasks,
       selectedTag: selectedTag ?? this.selectedTag,
-      devMode: devMode ?? this.devMode,
     );
   }
 }
 
-// ──── Notifier ────
+// ──── Notifier (Hive-persisted) ────
 
 class TodoNotifier extends Notifier<TodoState> {
   final List<List<TodoTask>> _undoStack = [];
   final List<List<TodoTask>> _redoStack = [];
 
+  TodoRepository get _repo => ref.read(todoRepositoryProvider);
+
   @override
   TodoState build() {
-    return TodoState(tasks: _sampleTasks());
+    // Load from Hive on startup
+    return TodoState(tasks: _repo.getAll());
   }
 
   // ── Snapshot helpers ──
@@ -55,6 +61,12 @@ class TodoNotifier extends Notifier<TodoState> {
     _redoStack.clear();
   }
 
+  /// Persist current task list to Hive.
+  Future<void> _persist() async {
+    await _repo.clear();
+    await _repo.putAll(state.tasks);
+  }
+
   bool get canUndo => _undoStack.isNotEmpty;
   bool get canRedo => _redoStack.isNotEmpty;
 
@@ -62,24 +74,24 @@ class TodoNotifier extends Notifier<TodoState> {
     if (!canUndo) return;
     _redoStack.add(List.of(state.tasks));
     state = state.copyWith(tasks: _undoStack.removeLast());
+    _persist();
   }
 
   void redo() {
     if (!canRedo) return;
     _undoStack.add(List.of(state.tasks));
     state = state.copyWith(tasks: _redoStack.removeLast());
-  }
-
-  // ── Dev mode ──
-
-  void toggleDevMode() {
-    state = state.copyWith(devMode: !state.devMode);
+    _persist();
   }
 
   // ── Tag Filter ──
 
   void selectTag(String tag) {
-    state = state.copyWith(selectedTag: tag);
+    if (tag != 'All' && !state.dynamicTags.contains(tag)) {
+      state = state.copyWith(selectedTag: 'All');
+    } else {
+      state = state.copyWith(selectedTag: tag);
+    }
   }
 
   // ── CRUD ──
@@ -87,22 +99,40 @@ class TodoNotifier extends Notifier<TodoState> {
   void addTask(TodoTask task) {
     _pushUndo();
     state = state.copyWith(tasks: [...state.tasks, task]);
+    _persist();
   }
 
   void editTask(TodoTask updated) {
     _pushUndo();
     state = state.copyWith(
-      tasks: state.tasks
-          .map((t) => t.id == updated.id ? updated : t)
-          .toList(),
+      tasks: state.tasks.map((t) => t.id == updated.id ? updated : t).toList(),
     );
+    _persist();
   }
 
   void deleteTask(String id) {
     _pushUndo();
-    state = state.copyWith(
-      tasks: state.tasks.where((t) => t.id != id).toList(),
-    );
+    final newTasks = state.tasks.where((t) => t.id != id).toList();
+    final newState = state.copyWith(tasks: newTasks);
+    if (!newState.dynamicTags.contains(state.selectedTag)) {
+      state = newState.copyWith(selectedTag: 'All');
+    } else {
+      state = newState;
+    }
+    _persist();
+  }
+
+  void deleteTasks(List<String> ids) {
+    _pushUndo();
+    final idSet = ids.toSet();
+    final newTasks = state.tasks.where((t) => !idSet.contains(t.id)).toList();
+    final newState = state.copyWith(tasks: newTasks);
+    if (!newState.dynamicTags.contains(state.selectedTag)) {
+      state = newState.copyWith(selectedTag: 'All');
+    } else {
+      state = newState;
+    }
+    _persist();
   }
 
   // ── Swipe Actions ──
@@ -114,6 +144,7 @@ class TodoNotifier extends Notifier<TodoState> {
           .map((t) => t.id == id ? t.copyWith(status: TaskStatus.done) : t)
           .toList(),
     );
+    _persist();
   }
 
   void markSkipped(String id) {
@@ -123,72 +154,12 @@ class TodoNotifier extends Notifier<TodoState> {
           .map((t) => t.id == id ? t.copyWith(status: TaskStatus.skipped) : t)
           .toList(),
     );
-  }
-
-  // ── Sample Data ──
-
-  static List<TodoTask> _sampleTasks() {
-    final now = DateTime.now();
-    return [
-      TodoTask(
-        id: '1',
-        name: 'Project Presentation',
-        description:
-            'Prepare the Q1 presentation slides for the team meeting. Include revenue charts and roadmap updates.',
-        deadline: now.add(const Duration(hours: 3)),
-        priority: TaskPriority.high,
-        tag: 'Work',
-      ),
-      TodoTask(
-        id: '2',
-        name: 'Grocery Shopping',
-        description:
-            'Buy vegetables, fruits, milk, eggs, and bread from the supermarket.',
-        deadline: now.add(const Duration(days: 1)),
-        priority: TaskPriority.medium,
-        tag: 'Personal',
-      ),
-      TodoTask(
-        id: '3',
-        name: 'Gym Session',
-        description:
-            'Upper body workout: bench press, overhead press, rows, and bicep curls.',
-        deadline: now.add(const Duration(hours: 5)),
-        priority: TaskPriority.low,
-        tag: 'Health',
-      ),
-      TodoTask(
-        id: '4',
-        name: 'Code Review',
-        description:
-            'Review pull requests #42 and #45 on the backend repository. Check for security issues.',
-        deadline: now.add(const Duration(hours: 1, minutes: 30)),
-        priority: TaskPriority.high,
-        tag: 'Work',
-      ),
-      TodoTask(
-        id: '5',
-        name: 'Read Book',
-        description:
-            'Continue reading "Atomic Habits" — finish Chapter 8 and take notes.',
-        deadline: now.add(const Duration(days: 3)),
-        priority: TaskPriority.low,
-        tag: 'Personal',
-      ),
-      TodoTask(
-        id: '6',
-        name: 'Doctor Appointment',
-        description:
-            'Annual health check-up at City Hospital. Bring insurance card.',
-        deadline: now.add(const Duration(days: 2)),
-        priority: TaskPriority.medium,
-        tag: 'Health',
-      ),
-    ];
+    _persist();
   }
 }
 
 // ──── Provider ────
 
-final todoNotifierProvider =
-    NotifierProvider<TodoNotifier, TodoState>(TodoNotifier.new);
+final todoNotifierProvider = NotifierProvider<TodoNotifier, TodoState>(
+  TodoNotifier.new,
+);

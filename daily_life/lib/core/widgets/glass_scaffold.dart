@@ -17,9 +17,8 @@ class GlassScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      extendBodyBehindAppBar: false,
       backgroundColor: AppColors.deepSapphire,
-      appBar: appBar,
       floatingActionButton: floatingActionButton,
       body: Stack(
         children: [
@@ -63,8 +62,27 @@ class GlassScaffold extends StatelessWidget {
             ),
           ),
 
-          // Main content
-          SafeArea(child: body),
+          // Main content with appbar
+          SafeArea(
+            child: Column(
+              children: [
+                // AppBar area with dark background
+                if (appBar != null) ...[
+                  Container(
+                    color: AppColors.deepSapphireDark.withValues(alpha: 0.85),
+                    child: appBar!,
+                  ),
+                  Divider(
+                    height: 0.5,
+                    thickness: 0.5,
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ],
+                // Body
+                Expanded(child: body),
+              ],
+            ),
+          ),
         ],
       ),
     );

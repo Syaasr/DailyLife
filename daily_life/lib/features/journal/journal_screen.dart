@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/edit_mode_toolbar.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/glass_scaffold.dart';
+import '../habits/providers/habit_provider.dart';
 import 'data/journal_entry.dart';
 import 'journal_detail_screen.dart';
 import 'journal_edit_screen.dart';
@@ -26,14 +28,86 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     super.dispose();
   }
 
+  void _showEditPicker(List<JournalEntry> entries) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.deepSapphireDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title:
+            const Text('Edit Journal', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: entries.length,
+            itemBuilder: (ctx, i) => ListTile(
+              leading: const Icon(Icons.edit_outlined,
+                  color: AppColors.glowingBlue),
+              title: Text(entries[i].title,
+                  style: const TextStyle(color: Colors.white)),
+              subtitle: Text(entries[i].tag,
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        JournalDetailScreen(entryId: entries[i].id),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeletePicker(
+      List<JournalEntry> entries, JournalNotifier notifier) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.deepSapphireDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Delete Journal',
+            style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: entries.length,
+            itemBuilder: (ctx, i) => ListTile(
+              leading:
+                  const Icon(Icons.delete_outline, color: AppColors.error),
+              title: Text(entries[i].title,
+                  style: const TextStyle(color: Colors.white)),
+              subtitle: Text(entries[i].tag,
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 12)),
+              onTap: () {
+                notifier.deleteEntry(entries[i].id);
+                Navigator.pop(context);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final journalState = ref.watch(journalNotifierProvider);
     final notifier = ref.read(journalNotifierProvider.notifier);
+    final devMode = ref.watch(devModeProvider);
     final filtered = journalState.filteredEntries;
 
     return GlassScaffold(
       floatingActionButton: FloatingActionButton(
+        heroTag: 'journal_fab',
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const JournalEditScreen()),
@@ -44,27 +118,25 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       appBar: AppBar(
         title: const Text('Journal'),
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => notifier.toggleDevMode(),
-              ),
-              if (journalState.devMode)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+          if (devMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(
+                'Edit Mode',
+                style: TextStyle(
+                  color: AppColors.glowingBlue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
                 ),
-            ],
+              ),
+            ),
+          IconButton(
+            icon: Icon(
+              devMode ? Icons.settings_rounded : Icons.settings_outlined,
+              color: devMode ? AppColors.glowingBlue : AppColors.textPrimary,
+            ),
+            onPressed: () =>
+                ref.read(devModeProvider.notifier).toggle(),
           ),
         ],
       ),
@@ -136,49 +208,49 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Dev mode toolbar
-          if (journalState.devMode)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  _DevButton(
-                    icon: Icons.undo,
-                    label: 'Undo',
-                    enabled: notifier.canUndo,
-                    onTap: () => notifier.undo(),
-                  ),
-                  const SizedBox(width: 8),
-                  _DevButton(
-                    icon: Icons.redo,
-                    label: 'Redo',
-                    enabled: notifier.canRedo,
-                    onTap: () => notifier.redo(),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.success.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'DEV MODE',
-                      style: TextStyle(
-                        color: AppColors.success,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          // ── Edit-Mode Toolbar (shared widget) ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: EditModeToolbar(
+              visible: devMode,
+              actions: [
+                EditModeAction(
+                  icon: Icons.undo,
+                  label: 'Undo',
+                  enabled: notifier.canUndo,
+                  onTap: () => notifier.undo(),
+                ),
+                EditModeAction(
+                  icon: Icons.redo,
+                  label: 'Redo',
+                  enabled: notifier.canRedo,
+                  onTap: () => notifier.redo(),
+                ),
+                EditModeAction(
+                  icon: Icons.add_circle_outline,
+                  label: 'Add',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const JournalEditScreen()),
+                    );
+                  },
+                ),
+                EditModeAction(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit',
+                  enabled: filtered.isNotEmpty,
+                  onTap: () => _showEditPicker(filtered),
+                ),
+                EditModeAction(
+                  icon: Icons.delete_outline,
+                  label: 'Delete',
+                  enabled: filtered.isNotEmpty,
+                  onTap: () => _showDeletePicker(filtered, notifier),
+                ),
+              ],
             ),
-          if (journalState.devMode) const SizedBox(height: 8),
+          ),
 
           // Journal list
           Expanded(
@@ -214,7 +286,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                       final entry = filtered[index];
                       return _JournalCard(
                         entry: entry,
-                        devMode: journalState.devMode,
+                        devMode: devMode,
                         onTap: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(
@@ -234,54 +306,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   }
 }
 
-class _DevButton extends StatelessWidget {
-  const _DevButton({
-    required this.icon,
-    required this.label,
-    required this.enabled,
-    required this.onTap,
-  });
 
-  final IconData icon;
-  final String label;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: enabled ? 0.12 : 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.glassBorder.withValues(alpha: enabled ? 0.3 : 0.1),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: enabled ? AppColors.textPrimary : AppColors.textMuted.withValues(alpha: 0.4),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: enabled ? AppColors.textPrimary : AppColors.textMuted.withValues(alpha: 0.4),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _JournalCard extends StatelessWidget {
   const _JournalCard({

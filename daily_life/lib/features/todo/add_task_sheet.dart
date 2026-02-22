@@ -4,10 +4,13 @@ import '../../core/theme/app_colors.dart';
 import 'todo_model.dart';
 
 class AddTaskSheet extends StatefulWidget {
-  const AddTaskSheet({super.key, this.task});
+  const AddTaskSheet({super.key, this.task, this.existingTags = const []});
 
   /// If non-null, the sheet is in edit mode.
   final TodoTask? task;
+
+  /// Tags that already exist in the system.
+  final List<String> existingTags;
 
   @override
   State<AddTaskSheet> createState() => _AddTaskSheetState();
@@ -16,11 +19,12 @@ class AddTaskSheet extends StatefulWidget {
 class _AddTaskSheetState extends State<AddTaskSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _descCtrl;
+  late final TextEditingController _customTagCtrl;
   late DateTime _deadline;
   late TaskPriority _priority;
   late String _tag;
-
-  static const _tags = ['Work', 'Personal', 'Health'];
+  late List<String> _allTags;
+  bool _showCustomTagField = false;
 
   bool get _isEdit => widget.task != null;
 
@@ -29,16 +33,24 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.task?.name ?? '');
     _descCtrl = TextEditingController(text: widget.task?.description ?? '');
+    _customTagCtrl = TextEditingController();
     _deadline =
         widget.task?.deadline ?? DateTime.now().add(const Duration(days: 1));
     _priority = widget.task?.priority ?? TaskPriority.medium;
-    _tag = widget.task?.tag ?? 'Personal';
+    _tag = widget.task?.tag ?? (widget.existingTags.isNotEmpty ? widget.existingTags.first : 'Personal');
+
+    // Build tag list: existing tags + ensure task's tag is included (for edit)
+    final tagSet = <String>{...widget.existingTags};
+    if (widget.task != null) tagSet.add(widget.task!.tag);
+    if (tagSet.isEmpty) tagSet.addAll(['Work', 'Personal', 'Health']);
+    _allTags = tagSet.toList()..sort();
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
+    _customTagCtrl.dispose();
     super.dispose();
   }
 
@@ -84,6 +96,20 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
     setState(() {
       _deadline =
           DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  void _addCustomTag() {
+    final custom = _customTagCtrl.text.trim();
+    if (custom.isEmpty) return;
+    setState(() {
+      if (!_allTags.contains(custom)) {
+        _allTags.add(custom);
+        _allTags.sort();
+      }
+      _tag = custom;
+      _customTagCtrl.clear();
+      _showCustomTagField = false;
     });
   }
 
@@ -228,36 +254,109 @@ class _AddTaskSheetState extends State<AddTaskSheet> {
             ),
             const SizedBox(height: 14),
 
-            // Tag
+            // Tag – horizontal scrollable with custom
             const Text('Tag',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
             const SizedBox(height: 6),
-            Row(
-              children: _tags.map((t) {
-                final selected = t == _tag;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(t),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _tag = t),
-                    selectedColor: AppColors.glowingBlue,
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : AppColors.textMuted,
-                      fontSize: 13,
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ..._allTags.map((t) {
+                    final selected = t == _tag;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text(t),
+                        selected: selected,
+                        onSelected: (_) => setState(() => _tag = t),
+                        selectedColor: AppColors.glowingBlue,
+                        backgroundColor: Colors.white.withValues(alpha: 0.08),
+                        labelStyle: TextStyle(
+                          color: selected ? Colors.white : AppColors.textMuted,
+                          fontSize: 13,
+                        ),
+                        side: BorderSide(
+                          color: selected
+                              ? AppColors.glowingBlue
+                              : AppColors.glassBorder.withValues(alpha: 0.3),
+                        ),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                      ),
+                    );
+                  }),
+                  // "Custom…" chip
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ActionChip(
+                      avatar: const Icon(Icons.add, size: 16, color: AppColors.textMuted),
+                      label: const Text('Custom…'),
+                      onPressed: () => setState(() => _showCustomTagField = !_showCustomTagField),
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                      labelStyle: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 13,
+                      ),
+                      side: BorderSide(
+                        color: AppColors.glassBorder.withValues(alpha: 0.3),
+                      ),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
                     ),
-                    side: BorderSide(
-                      color: selected
-                          ? AppColors.glowingBlue
-                          : AppColors.glassBorder.withValues(alpha: 0.3),
-                    ),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20)),
                   ),
-                );
-              }).toList(),
+                ],
+              ),
             ),
+
+            // Custom tag text field
+            if (_showCustomTagField) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _customTagCtrl,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Enter custom tag…',
+                        hintStyle: TextStyle(
+                            color: AppColors.textMuted.withValues(alpha: 0.5),
+                            fontSize: 14),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.08),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: AppColors.glassBorder.withValues(alpha: 0.3)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: AppColors.glassBorder.withValues(alpha: 0.3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: AppColors.glowingBlue, width: 1.5),
+                        ),
+                      ),
+                      onSubmitted: (_) => _addCustomTag(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _addCustomTag,
+                    icon: const Icon(Icons.check_circle,
+                        color: AppColors.glowingBlue, size: 28),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
 
             // Save button
