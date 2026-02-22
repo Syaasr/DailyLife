@@ -118,6 +118,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       appBar: AppBar(
         title: const Text('Journal'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
+            onPressed: () {
+              ref.read(journalNotifierProvider.notifier).setTag('All');
+            },
+          ),
           if (devMode)
             Padding(
               padding: const EdgeInsets.only(right: 4),

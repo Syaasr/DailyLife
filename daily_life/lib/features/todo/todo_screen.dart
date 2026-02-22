@@ -143,6 +143,12 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
       appBar: AppBar(
         title: const Text('To Do List'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
+            onPressed: () {
+              ref.read(todoNotifierProvider.notifier).selectTag('All');
+            },
+          ),
           if (devMode)
             Padding(
               padding: const EdgeInsets.only(right: 4),
@@ -342,38 +348,38 @@ class _SwipeableTaskCardState extends State<_SwipeableTaskCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Dismissible(
-      key: ValueKey(widget.task.id),
-      // Swipe LEFT → Done (green)
-      background: Container(
-        alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.only(left: 32),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.success.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.check_circle, color: AppColors.success, size: 28),
-            SizedBox(width: 8),
-            Text('Done',
-                style: TextStyle(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
-          ],
-        ),
-      ),
-      // Swipe RIGHT → Skip (yellow)
-      secondaryBackground: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 32),
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(28),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Dismissible(
+          key: ValueKey(widget.task.id),
+          // Swipe LEFT → Done (green)
+          background: Container(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 32),
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.3),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle, color: AppColors.success, size: 28),
+                SizedBox(width: 8),
+                Text('Done',
+                    style: TextStyle(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14)),
+              ],
+            ),
+          ),
+          // Swipe RIGHT → Skip (yellow)
+          secondaryBackground: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 32),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.3),
+            ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
@@ -398,6 +404,7 @@ class _SwipeableTaskCardState extends State<_SwipeableTaskCard> {
       child: GestureDetector(
         onLongPress: widget.onLongPress,
         child: GlassCard(
+          margin: EdgeInsets.zero,
           onTap: () => setState(() => _expanded = !_expanded),
           child: Container(
             decoration: widget.isSelected
@@ -544,7 +551,7 @@ class _SwipeableTaskCardState extends State<_SwipeableTaskCard> {
           ),
         ),
       ),
-    );
+    )));
   }
 }
 

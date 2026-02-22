@@ -16,6 +16,8 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   String _selectedTag = 'Gratitude';
+  bool _isCustomTag = false;
+  final _customTagController = TextEditingController();
 
   // Local undo/redo for the editing session
   final List<_EditSnapshot> _undoStack = [];
@@ -25,6 +27,7 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _customTagController.dispose();
     super.dispose();
   }
 
@@ -70,6 +73,16 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
   void _save() {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
+    
+    String finalTag = _selectedTag;
+    if (_isCustomTag) {
+      final custom = _customTagController.text.trim();
+      if (custom.isNotEmpty) {
+        finalTag = custom;
+      } else {
+        finalTag = 'General'; // default if left empty
+      }
+    }
 
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -87,7 +100,7 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
     ref.read(journalNotifierProvider.notifier).addEntry(
           title: title,
           content: content,
-          tag: _selectedTag,
+          tag: finalTag,
         );
 
     Navigator.pop(context);
@@ -100,6 +113,9 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
         .tags
         .where((t) => t != 'All')
         .toList();
+    if (!tags.contains(_selectedTag) && !_isCustomTag) {
+      _selectedTag = tags.isNotEmpty ? tags.first : 'Gratitude';
+    }
 
     return GlassScaffold(
       appBar: AppBar(
@@ -190,39 +206,78 @@ class _JournalEditScreenState extends ConsumerState<JournalEditScreen> {
                   ),
                   const SizedBox(height: 8),
 
-                  // Tag dropdown
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.glassBorder.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedTag,
-                        dropdownColor: AppColors.deepSapphire,
-                        style: const TextStyle(
-                          color: AppColors.glowingBlue,
-                          fontSize: 14,
+                  // Tag dropdown & text field
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppColors.glassBorder.withValues(alpha: 0.2),
+                          ),
                         ),
-                        icon: const Icon(
-                          Icons.expand_more,
-                          color: AppColors.textMuted,
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _isCustomTag ? 'Custom...' : _selectedTag,
+                            dropdownColor: AppColors.deepSapphire,
+                            style: const TextStyle(
+                              color: AppColors.glowingBlue,
+                              fontSize: 14,
+                            ),
+                            icon: const Icon(
+                              Icons.expand_more,
+                              color: AppColors.textMuted,
+                            ),
+                            items: [...tags, 'Custom...'].map((t) {
+                              return DropdownMenuItem(value: t, child: Text(t));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                _pushEditUndo();
+                                setState(() {
+                                  if (val == 'Custom...') {
+                                    _isCustomTag = true;
+                                  } else {
+                                    _isCustomTag = false;
+                                    _selectedTag = val;
+                                  }
+                                });
+                              }
+                            },
+                          ),
                         ),
-                        items: tags.map((t) {
-                          return DropdownMenuItem(value: t, child: Text(t));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            _pushEditUndo();
-                            setState(() => _selectedTag = val);
-                          }
-                        },
                       ),
-                    ),
+                      if (_isCustomTag) ...[
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            height: 48,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: AppColors.glassBorder.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Center(
+                              child: TextField(
+                                controller: _customTagController,
+                                style: const TextStyle(color: Colors.white, fontSize: 14),
+                                decoration: const InputDecoration(
+                                  hintText: 'Custom tag name',
+                                  hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
+                                  border: InputBorder.none,
+                                  isCollapsed: true,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 16),
 

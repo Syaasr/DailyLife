@@ -56,6 +56,12 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen> {
       appBar: AppBar(
         title: const Text('Habit Tracker'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
+            onPressed: () {
+              ref.read(selectedDateProvider.notifier).select(DateTime.now());
+            },
+          ),
           if (devMode)
             Padding(
               padding: const EdgeInsets.only(right: 4),
@@ -676,79 +682,83 @@ class _HabitCardStack extends ConsumerWidget {
         final skipped = status == 'skip';
         final isSelected = selectedIds.contains(habit.id);
 
-        final swipeDirection = done
-            ? DismissDirection.none
-            : skipped
-                ? DismissDirection.startToEnd
-                : DismissDirection.horizontal;
+        final now = DateTime.now();
+        final isToday = selectedDate.year == now.year &&
+            selectedDate.month == now.month &&
+            selectedDate.day == now.day;
 
-        return Dismissible(
-          key: ValueKey('${habit.id}_$dateKey'),
-          direction: swipeDirection,
-          confirmDismiss: (direction) async {
-            if (direction == DismissDirection.startToEnd) {
-              notifier.markDone(habit.id, selectedDate);
-              notifier.moveToBottom(habit.id);
-            } else {
-              notifier.markSkip(habit.id, selectedDate);
-              notifier.moveToBottom(habit.id);
-            }
-            return false;
-          },
-          // Swipe LEFT background → Done (green)
-          background: ClipRRect(
+        final DismissDirection swipeDirection;
+        if (!isToday) {
+          swipeDirection = DismissDirection.none;
+        } else if (done) {
+          swipeDirection = DismissDirection.none;
+        } else if (skipped) {
+          swipeDirection = DismissDirection.startToEnd;
+        } else {
+          swipeDirection = DismissDirection.horizontal;
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(28),
-            child: Container(
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.only(left: 32),
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.success.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(28),
+            child: Dismissible(
+              key: ValueKey('${habit.id}_$dateKey'),
+              direction: swipeDirection,
+              confirmDismiss: (direction) async {
+                if (direction == DismissDirection.startToEnd) {
+                  notifier.markDone(habit.id, selectedDate);
+                  notifier.moveToBottom(habit.id);
+                } else {
+                  notifier.markSkip(habit.id, selectedDate);
+                  notifier.moveToBottom(habit.id);
+                }
+                return false;
+              },
+              // Swipe LEFT background → Done (green)
+              background: Container(
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.only(left: 32),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.3),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.check_circle, color: AppColors.success, size: 28),
+                    SizedBox(width: 8),
+                    Text('Done',
+                        style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
+                  ],
+                ),
               ),
-              child: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: AppColors.success, size: 28),
-                  SizedBox(width: 8),
-                  Text('Done',
-                      style: TextStyle(
-                          color: AppColors.success,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14)),
-                ],
+              // Swipe RIGHT background → Skip (amber)
+              secondaryBackground: Container(
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 32),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.3),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text('Skip',
+                        style: TextStyle(
+                            color: AppColors.warning,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14)),
+                    SizedBox(width: 8),
+                    Icon(Icons.skip_next_rounded,
+                        color: AppColors.warning, size: 28),
+                  ],
+                ),
               ),
-            ),
-          ),
-          // Swipe RIGHT background → Skip (amber)
-          secondaryBackground: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
-            child: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 32),
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text('Skip',
-                      style: TextStyle(
-                          color: AppColors.warning,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14)),
-                  SizedBox(width: 8),
-                  Icon(Icons.skip_next_rounded,
-                      color: AppColors.warning, size: 28),
-                ],
-              ),
-            ),
-          ),
-          child: GestureDetector(
-            onLongPress: devMode ? () => onToggleSelect(habit.id) : null,
-            child: GlassCard(
-              margin: const EdgeInsets.symmetric(vertical: 6),
+              child: GestureDetector(
+                onLongPress: devMode ? () => onToggleSelect(habit.id) : null,
+                child: GlassCard(
+                  margin: EdgeInsets.zero,
               child: Container(
                 decoration: isSelected
                     ? BoxDecoration(
@@ -797,7 +807,6 @@ class _HabitCardStack extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    // Text
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,42 +824,74 @@ class _HabitCardStack extends ConsumerWidget {
                                   : null,
                             ),
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            '${habit.time}  •  ${habit.place}',
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.textMuted),
+                          const SizedBox(height: 8),
+                          // Habit time, place, and completion badge
+                          Row(
+                            children: [
+                              if (habit.time.isNotEmpty) ...[
+                                Icon(Icons.access_time,
+                                    size: 14, color: AppColors.glowingBlue),
+                                const SizedBox(width: 4),
+                                Text(habit.time,
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12)),
+                                const SizedBox(width: 12),
+                              ],
+                              if (habit.place.isNotEmpty) ...[
+                                Icon(Icons.location_on_outlined,
+                                    size: 14, color: AppColors.glowingBlue),
+                                const SizedBox(width: 4),
+                                Text(habit.place,
+                                    style: const TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12)),
+                              ],
+                              const Spacer(),
+                              if (done)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text('Done',
+                                      style: TextStyle(
+                                          color: AppColors.success,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold)),
+                                )
+                              else if (skipped)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.warning
+                                        .withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text('Skipped',
+                                      style: TextStyle(
+                                          color: AppColors.warning,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold)),
+                                )
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    // Status badge
-                    if (done)
-                      _statusBadge('Done', AppColors.success)
-                    else if (skipped)
-                      _statusBadge('Skipped', AppColors.warning),
                   ],
                 ),
               ),
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
-  }
-
-  Widget _statusBadge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-            color: color, fontSize: 11, fontWeight: FontWeight.w600),
-      ),
+  }).toList(),
     );
   }
 }
