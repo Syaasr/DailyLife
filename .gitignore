@@ -14,28 +14,28 @@
 *.iws
 
 # Flutter/Dart (DailyLife App)
-daily_life/.dart_tool/
-daily_life/.flutter-plugins
-daily_life/.flutter-plugins-dependencies
-daily_life/.packages
-daily_life/.pub-cache/
-daily_life/.pub/
-daily_life/build/
-daily_life/coverage/
-daily_life/.metadata
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+.metadata
 
 # Android artifacts
-daily_life/android/app/debug
-daily_life/android/app/profile
-daily_life/android/app/release
-daily_life/android/local.properties
+android/app/debug
+android/app/profile
+android/app/release
+android/local.properties
 
 
 # iOS artifacts
-daily_life/ios/Flutter/.last_build_id
-daily_life/ios/Flutter/Ephemeral/
-daily_life/ios/Flutter/Generated.xcconfig
-daily_life/ios/Flutter/flutter_export_environment.sh
+ios/Flutter/.last_build_id
+ios/Flutter/Ephemeral/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
 
 # Logs and class files
 *.log
